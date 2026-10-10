@@ -1,146 +1,177 @@
+
 <!doctype html>
 <html lang="bn">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#14532d">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#12372a">
+  <meta name="robots" content="noindex, nofollow">
   <title>CHAMAK STORE NEXT</title>
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="mark" href="/">CS</a>
-    <div><b>CHAMAK STORE</b><small>ব্যবসার হিসাব</small></div>
-    <span id="health">সংযোগ যাচাই...</span>
-  </header>
+  <main class="app-shell">
 
-  <main>
-    <section class="welcome">
-      <p>দোকানের নিয়ন্ত্রণ কেন্দ্র</p>
-      <h1>আজকের হিসাব</h1>
-      <small>Cloudflare D1 সংযুক্ত ড্যাশবোর্ড</small>
-    </section>
+    <!-- LOGIN SCREEN -->
+    <section id="loginScreen" class="login-screen" hidden>
+      <div class="login-card">
+        <div class="brand-mark" aria-hidden="true">চ</div>
+        <p class="eyebrow">BUSINESS MANAGEMENT</p>
+        <h1>CHAMAK STORE</h1>
+        <p class="login-subtitle">তোমার দোকানের হিসাব, এক জায়গায়</p>
 
-    <section class="metrics">
-      <article><span>বর্তমান নগদ</span><b id="cash">৳ ০.০০</b></article>
-      <article><span>স্টকের আনুমানিক মূল্য</span><b id="stock">৳ ০.০০</b></article>
-      <article><span>আজকের বিক্রি</span><b id="sales">৳ ০.০০</b></article>
-      <article><span>সক্রিয় পণ্য</span><b id="products">০</b></article>
-    </section>
+        <form id="loginForm" autocomplete="on">
+          <label for="loginPassword">অ্যাপের পাসওয়ার্ড</label>
 
-    <section class="section" id="product-section">
-      <div class="section-head">
-        <div>
-          <h2>পণ্য ব্যবস্থাপনা</h2>
-          <p class="muted">পণ্য যোগ, খোঁজা ও সম্পাদনা</p>
-        </div>
-        <button class="primary" id="new-product">＋ পণ্য যোগ</button>
-      </div>
+          <div class="password-field">
+            <input
+              id="loginPassword"
+              name="password"
+              type="password"
+              placeholder="পাসওয়ার্ড লিখো"
+              autocomplete="current-password"
+              required
+              maxlength="500"
+              autofocus
+            >
+            <button
+              id="togglePassword"
+              class="password-toggle"
+              type="button"
+              aria-label="পাসওয়ার্ড দেখাও"
+              aria-pressed="false"
+            >দেখাও</button>
+          </div>
 
-      <div class="toolbar">
-        <input id="product-search" type="search" placeholder="পণ্যের নাম বা SKU খুঁজুন">
-        <button id="refresh-products" class="secondary">রিফ্রেশ</button>
-      </div>
+          <p id="loginMessage" class="form-message" role="alert" hidden></p>
 
-      <div id="product-message" class="message" role="status" hidden></div>
+          <button id="loginButton" class="primary-button" type="submit">
+            লগইন
+          </button>
+        </form>
 
-      <form id="product-form" class="product-form" hidden>
-        <div class="form-head">
-          <h3 id="form-title">নতুন পণ্য</h3>
-          <button type="button" id="cancel-form" class="secondary">বন্ধ</button>
-        </div>
-
-        <input type="hidden" id="product-id">
-
-        <div class="form-grid">
-          <label>পণ্যের নাম *
-            <input id="p-name" maxlength="120" required placeholder="যেমন: চাল">
-          </label>
-
-          <label>SKU / কোড *
-            <input id="p-sku" maxlength="40" required
-              pattern="[A-Za-z0-9._-]{2,40}" placeholder="যেমন: CHAL-01">
-          </label>
-
-          <label>একক *
-            <select id="p-unit">
-              <option value="pcs">পিস</option>
-              <option value="kg">কেজি</option>
-              <option value="g">গ্রাম</option>
-              <option value="ltr">লিটার</option>
-              <option value="ml">মিলিলিটার</option>
-              <option value="pack">প্যাকেট</option>
-              <option value="bag">বস্তা</option>
-              <option value="dozen">ডজন</option>
-            </select>
-          </label>
-
-          <label>বিক্রয়মূল্য (টাকা) *
-            <input id="p-sale" type="number" min="0" max="1000000000"
-              step="0.01" required inputmode="decimal">
-          </label>
-
-          <label id="cost-label">প্রাথমিক গড় ক্রয়মূল্য (টাকা)
-            <input id="p-cost" type="number" min="0" max="1000000000"
-              step="0.01" value="0" inputmode="decimal">
-          </label>
-
-          <label>সর্বনিম্ন স্টক সতর্কতা
-            <input id="p-min" type="number" min="0" max="100000000"
-              step="0.001" value="0" inputmode="decimal">
-          </label>
-        </div>
-
-        <p id="edit-note" class="muted" hidden>
-          সম্পাদনায় বর্তমান স্টক ও গড় ক্রয়মূল্য পরিবর্তন হবে না।
+        <p class="security-note">
+          নিরাপত্তার জন্য পাসওয়ার্ড কাউকে দিও না।
         </p>
+      </div>
+    </section>
 
-        <div class="form-actions">
-          <button type="button" id="cancel-form-2" class="secondary">বাতিল</button>
-          <button type="submit" id="save-product" class="primary">সংরক্ষণ</button>
+    <!-- MAIN APP -->
+    <section id="appScreen" hidden>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">BUSINESS MANAGER</p>
+          <h1>CHAMAK STORE</h1>
         </div>
-      </form>
 
-      <div id="product-list">
-        <div class="empty">পণ্যের তালিকা লোড হচ্ছে...</div>
-      </div>
-    </section>
+        <button id="logoutButton" class="logout-button" type="button">
+          Logout
+        </button>
+      </header>
 
-    <section class="section">
-      <h2>প্রধান মেনু</h2>
-      <div class="grid">
-        <button data-module="sales"><i>৳</i><b>বিক্রি</b><small>পরবর্তী ধাপে চালু হবে</small></button>
-        <button data-module="purchases"><i>＋</i><b>ক্রয়</b><small>ক্রয় ও সরবরাহকারী</small></button>
-        <button data-module="customers"><i>♙</i><b>ক্রেতা ও বাকি</b><small>খাতা ও টাকা আদায়</small></button>
-        <button data-module="suppliers"><i>⇄</i><b>সরবরাহকারী</b><small>পাওনা ও পরিশোধ</small></button>
-        <button data-module="cash"><i>▤</i><b>নগদ ও খরচ</b><small>জমা, উত্তোলন, খরচ</small></button>
-        <button data-module="stock-check"><i>✓</i><b>স্টক ভেলু যাচাই</b><small>বাস্তব স্টক মিলানো</small></button>
-        <button data-module="reports"><i>▥</i><b>রিপোর্ট</b><small>বিক্রি, লাভ, নগদ</small></button>
-        <button data-module="history"><i>↺</i><b>লেনদেনের ইতিহাস</b><small>অডিট ও যাচাই</small></button>
-        <button data-module="settings"><i>⚙</i><b>সেটিংস</b><small>ডেটা সুরক্ষা</small></button>
-      </div>
-    </section>
+      <p id="globalMessage" class="form-message" role="status" hidden></p>
 
-    <section class="notice">
-      <b>ডেটা সুরক্ষা সতর্কতা</b>
-      <p>এই সংস্করণে লগইন ও অ্যাক্সেস নিয়ন্ত্রণ এখনো যুক্ত হয়নি।
-      আপাতত বাস্তব বা গোপন ব্যবসায়িক তথ্য ব্যবহার কোরো না।</p>
-    </section>
+      <section id="dashboardSection" class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">OVERVIEW</p>
+            <h2>দোকানের সারসংক্ষেপ</h2>
+          </div>
+          <button id="refreshDashboard" class="secondary-button" type="button">
+            রিফ্রেশ
+          </button>
+        </div>
 
-    <section id="panel" class="section" hidden>
-      <h2 id="panel-title">মডিউল</h2>
-      <p id="panel-description"></p>
-      <button id="close-panel" class="secondary">বন্ধ</button>
+        <div class="summary-grid">
+          <article class="summary-card">
+            <span>বর্তমান নগদ</span>
+            <strong id="cashBalance">লোড হচ্ছে…</strong>
+          </article>
+          <article class="summary-card">
+            <span>আজকের বিক্রি</span>
+            <strong id="todaySales">লোড হচ্ছে…</strong>
+          </article>
+          <article class="summary-card">
+            <span>মোট স্টক মূল্য</span>
+            <strong id="stockValue">লোড হচ্ছে…</strong>
+          </article>
+          <article class="summary-card">
+            <span>সরবরাহকারীর পাওনা</span>
+            <strong id="supplierPayable">লোড হচ্ছে…</strong>
+          </article>
+        </div>
+      </section>
+
+      <section id="productsSection" class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">INVENTORY</p>
+            <h2>পণ্য ব্যবস্থাপনা</h2>
+          </div>
+        </div>
+
+        <form id="productForm" class="data-form">
+          <input id="productId" type="hidden">
+
+          <label for="productSku">SKU / পণ্য কোড</label>
+          <input id="productSku" maxlength="40" required placeholder="যেমন: SKU-001">
+
+          <label for="productName">পণ্যের নাম</label>
+          <input id="productName" maxlength="160" required placeholder="পণ্যের নাম">
+
+          <label for="productUnit">একক</label>
+          <select id="productUnit">
+            <option value="pcs">পিস</option>
+            <option value="kg">কেজি</option>
+            <option value="g">গ্রাম</option>
+            <option value="l">লিটার</option>
+            <option value="pack">প্যাকেট</option>
+            <option value="dozen">ডজন</option>
+          </select>
+
+          <label for="productSalePrice">বিক্রয়মূল্য (টাকা)</label>
+          <input id="productSalePrice" type="number" min="0" step="0.01" required value="0">
+
+          <label for="productMinStock">সর্বনিম্ন স্টক</label>
+          <input id="productMinStock" type="number" min="0" step="0.001" required value="0">
+
+          <div class="form-actions">
+            <button id="saveProductButton" class="primary-button" type="submit">
+              পণ্য সংরক্ষণ
+            </button>
+            <button id="cancelProductEdit" class="secondary-button" type="button" hidden>
+              বাতিল
+            </button>
+          </div>
+        </form>
+
+        <div class="list-heading">
+          <h3>পণ্যের তালিকা</h3>
+          <button id="refreshProducts" class="secondary-button" type="button">
+            রিফ্রেশ
+          </button>
+        </div>
+
+        <label for="productSearch">পণ্য খুঁজুন</label>
+        <input id="productSearch" type="search" placeholder="পণ্যের নাম বা SKU">
+
+        <p id="productMessage" class="form-message" role="status" hidden></p>
+        <div id="productList" class="product-list"></div>
+      </section>
+
+      <section id="otherModulesSection" class="panel">
+        <p class="eyebrow">NEXT MODULES</p>
+        <h2>পরবর্তী কাজ</h2>
+        <p class="muted">
+          সরবরাহকারী, ক্রয়, বিক্রি, খরচ ও স্টক যাচাইয়ের ফর্ম পরবর্তী ধাপে যুক্ত হবে।
+        </p>
+      </section>
+
+      <footer class="app-footer">
+        CHAMAK STORE NEXT
+      </footer>
     </section>
   </main>
-
-  <nav class="bottom">
-    <a href="/">⌂<small>হোম</small></a>
-    <button data-module="sales">৳<small>বিক্রি</small></button>
-    <button id="nav-products">▦<small>পণ্য</small></button>
-    <button data-module="customers">♙<small>খাতা</small></button>
-    <button data-module="menu">☰<small>আরও</small></button>
-  </nav>
 </body>
 </html>
