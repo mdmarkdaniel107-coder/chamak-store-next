@@ -10,5 +10,5 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "chamak-store-next-db"
-database_id = "REPLACE_WITH_NEW_D1_DATABASE_ID"
+database_id = "30bed853-da74-4a4b-b12e-8fb047c8bfbb"
 migrations_dir = "migrations"
