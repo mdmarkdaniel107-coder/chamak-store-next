@@ -63,8 +63,8 @@ async function api(path, options = {}) {
     throw new Error("সার্ভারের সঙ্গে সংযোগ হয়নি। ইন্টারনেট ও Deploy যাচাই করো।");
   }
 
-  const contentType = response.headers.get("content-type") || "";
   let result = {};
+  const contentType = response.headers.get("content-type") || "";
 
   if (contentType.includes("application/json")) {
     try {
@@ -80,7 +80,7 @@ async function api(path, options = {}) {
     throw new Error("সেশন শেষ হয়েছে। আবার লগইন করো।");
   }
 
-  if (!response.ok || result.ok === false) {
+  if (!response.ok) {
     throw new Error(result.error || `অনুরোধ ব্যর্থ হয়েছে (${response.status})`);
   }
 
@@ -92,15 +92,22 @@ function showLogin() {
   show($("loginScreen"), true);
   show($("appScreen"), false);
 
-  $("loginPassword").value = "";
-  $("loginPassword").type = "password";
-  $("togglePassword").textContent = "দেখাও";
-  $("togglePassword").setAttribute("aria-pressed", "false");
-  $("togglePassword").setAttribute("aria-label", "পাসওয়ার্ড দেখাও");
+  if ($("loginPassword")) {
+    $("loginPassword").value = "";
+    $("loginPassword").type = "password";
+  }
+
+  if ($("togglePassword")) {
+    $("togglePassword").textContent = "দেখাও";
+    $("togglePassword").setAttribute("aria-pressed", "false");
+    $("togglePassword").setAttribute("aria-label", "পাসওয়ার্ড দেখাও");
+  }
 
   message($("loginMessage"));
-  $("loginButton").disabled = false;
-  $("loginButton").textContent = "লগইন";
+  if ($("loginButton")) {
+    $("loginButton").disabled = false;
+    $("loginButton").textContent = "লগইন";
+  }
 }
 
 function showApp() {
@@ -113,6 +120,7 @@ function showApp() {
 async function checkSession() {
   try {
     const result = await api("/api/auth/session");
+
     if (result.authenticated) {
       showApp();
       await loadAppData();
@@ -130,6 +138,7 @@ async function handleLogin(event) {
   if (state.busy) return;
 
   const password = $("loginPassword").value;
+
   if (!password) {
     message($("loginMessage"), "পাসওয়ার্ড লিখো।", "error");
     return;
@@ -162,9 +171,7 @@ async function handleLogin(event) {
 
 async function handleLogout() {
   if (state.busy) return;
-
-  const confirmed = window.confirm("তুমি কি লগআউট করতে চাও?");
-  if (!confirmed) return;
+  if (!window.confirm("তুমি কি লগআউট করতে চাও?")) return;
 
   state.busy = true;
   $("logoutButton").disabled = true;
@@ -172,30 +179,37 @@ async function handleLogout() {
 
   try {
     await api("/api/auth/logout", { method: "POST" });
+    state.products = [];
+    showLogin();
   } catch (error) {
     message($("globalMessage"), error.message, "error");
   } finally {
     state.busy = false;
     $("logoutButton").disabled = false;
     $("logoutButton").textContent = "Logout";
-    state.products = [];
-    showLogin();
   }
 }
 
 async function loadDashboard() {
-  const result = await api("/api/dashboard");
-  const data = result.data || {};
+  const data = await api("/api/dashboard");
 
-  $("cashBalance").textContent = moneyFromPaisa(data.cashBalancePaisa);
-  $("todaySales").textContent = moneyFromPaisa(data.todaySalesPaisa);
-  $("stockValue").textContent = moneyFromPaisa(data.stockValuePaisa);
-  $("supplierPayable").textContent = moneyFromPaisa(data.supplierPayablePaisa);
+  $("cashBalance").textContent =
+    moneyFromPaisa(data.cash_balance_paisa);
+
+  $("todaySales").textContent =
+    moneyFromPaisa(data.today_sales_paisa);
+
+  $("stockValue").textContent =
+    moneyFromPaisa(data.stock_value_paisa);
+
+  // এই API সংস্করণে supplier payable এখনও ফেরত আসে না।
+  $("supplierPayable").textContent = "—";
 }
 
 async function loadProducts() {
   const result = await api("/api/products");
-  state.products = Array.isArray(result.data) ? result.data : [];
+
+  state.products = Array.isArray(result.items) ? result.items : [];
   renderProducts();
 }
 
@@ -209,13 +223,12 @@ async function loadAppData() {
     loadProducts(),
   ]);
 
-  const failed = results.filter((result) => result.status === "rejected");
-  if (failed.length) {
-    message(
-      $("globalMessage"),
-      failed.map((result) => result.reason.message).join(" "),
-      "error"
-    );
+  const failures = results
+    .filter((item) => item.status === "rejected")
+    .map((item) => item.reason.message);
+
+  if (failures.length) {
+    message($("globalMessage"), failures.join(" "), "error");
   }
 }
 
@@ -223,9 +236,11 @@ function renderProducts() {
   const query = $("productSearch").value.trim().toLocaleLowerCase();
   const list = $("productList");
 
-  const filtered = state.products.filter((product) => {
-    return `${product.name} ${product.sku}`.toLocaleLowerCase().includes(query);
-  });
+  const filtered = state.products.filter((product) =>
+    `${product.name} ${product.sku}`
+      .toLocaleLowerCase()
+      .includes(query)
+  );
 
   if (!filtered.length) {
     list.innerHTML = '<p class="muted">কোনো পণ্য পাওয়া যায়নি।</p>';
@@ -237,8 +252,18 @@ function renderProducts() {
       <div class="product-card-main">
         <strong>${escapeHtml(product.name)}</strong>
         <span class="muted">SKU: ${escapeHtml(product.sku)}</span>
-        <span>স্টক: ${(Number(product.stock_qty_milli || 0) / 1000).toLocaleString("bn-BD")} ${escapeHtml(product.unit)}</span>
-        <span>বিক্রয়মূল্য: ${moneyFromPaisa(product.sale_price_paisa)}</span>
+        <span>
+          স্টক:
+          ${(Number(product.stock_qty_milli || 0) / 1000)
+            .toLocaleString("bn-BD")}
+          ${escapeHtml(product.unit)}
+        </span>
+        <span>
+          বিক্রয়মূল্য: ${moneyFromPaisa(product.sale_price_paisa)}
+        </span>
+        <span>
+          গড় ক্রয়মূল্য: ${moneyFromPaisa(product.avg_cost_paisa)}
+        </span>
       </div>
       <button
         type="button"
@@ -252,6 +277,7 @@ function renderProducts() {
 function resetProductForm() {
   $("productForm").reset();
   $("productId").value = "";
+  $("productSku").disabled = false;
   $("productSalePrice").value = "0";
   $("productMinStock").value = "0";
   $("saveProductButton").textContent = "পণ্য সংরক্ষণ";
@@ -264,14 +290,20 @@ function editProduct(productId) {
 
   $("productId").value = product.id;
   $("productSku").value = product.sku;
+  $("productSku").disabled = true;
   $("productName").value = product.name;
   $("productUnit").value = product.unit;
-  $("productSalePrice").value = (Number(product.sale_price_paisa) / 100).toFixed(2);
-  $("productMinStock").value = (Number(product.min_stock_qty_milli) / 1000).toString();
+  $("productSalePrice").value =
+    (Number(product.sale_price_paisa) / 100).toFixed(2);
+  $("productMinStock").value =
+    (Number(product.min_stock_qty_milli) / 1000).toString();
 
   $("saveProductButton").textContent = "পরিবর্তন সংরক্ষণ";
   show($("cancelProductEdit"), true);
-  $("productsSection").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("productsSection").scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 }
 
 async function saveProduct(event) {
@@ -279,20 +311,30 @@ async function saveProduct(event) {
   if (state.busy) return;
 
   const productId = $("productId").value;
-  const salePricePaisa = Math.round(Number($("productSalePrice").value) * 100);
+  const salePrice = Number($("productSalePrice").value);
+  const minStock = Number($("productMinStock").value);
 
-  if (!Number.isSafeInteger(salePricePaisa) || salePricePaisa < 0) {
+  if (!Number.isFinite(salePrice) || salePrice < 0) {
     message($("productMessage"), "বিক্রয়মূল্য সঠিক নয়।", "error");
     return;
   }
 
+  if (!Number.isFinite(minStock) || minStock < 0) {
+    message($("productMessage"), "সর্বনিম্ন স্টক সঠিক নয়।", "error");
+    return;
+  }
+
   const body = {
-    sku: $("productSku").value.trim(),
     name: $("productName").value.trim(),
     unit: $("productUnit").value,
-    sale_price_paisa: salePricePaisa,
-    min_stock_qty: Number($("productMinStock").value),
+    sale_price: salePrice,
+    min_stock: minStock,
   };
+
+  if (!productId) {
+    body.sku = $("productSku").value.trim();
+    body.avg_cost = 0;
+  }
 
   state.busy = true;
   $("saveProductButton").disabled = true;
@@ -300,7 +342,9 @@ async function saveProduct(event) {
 
   try {
     await api(
-      productId ? `/api/products/${encodeURIComponent(productId)}` : "/api/products",
+      productId
+        ? `/api/products/${encodeURIComponent(productId)}`
+        : "/api/products",
       {
         method: productId ? "PATCH" : "POST",
         body: JSON.stringify(body),
@@ -309,7 +353,7 @@ async function saveProduct(event) {
 
     resetProductForm();
     await Promise.all([loadProducts(), loadDashboard()]);
-    message($("productMessage"), "পণ্য সংরক্ষণ হয়েছে।", "success");
+    message($("productMessage"), "পণ্যের তথ্য সংরক্ষণ হয়েছে।", "success");
   } catch (error) {
     message($("productMessage"), error.message, "error");
   } finally {
