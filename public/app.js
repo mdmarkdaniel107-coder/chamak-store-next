@@ -1,374 +1,369 @@
+
 "use strict";
 
-const $ = selector => document.querySelector(selector);
+const $ = (id) => document.getElementById(id);
 
-const modules = {
-  sales: ["বিক্রি", "বিক্রির API এখনো চালু হয়নি।"],
-  purchases: ["ক্রয়", "ক্রয় ও সরবরাহকারী লেজার পরবর্তী ধাপে যুক্ত হবে।"],
-  customers: ["ক্রেতা ও বাকি", "ক্রেতার খাতা, বকেয়া ও আদায় পরবর্তী ধাপে যুক্ত হবে।"],
-  suppliers: ["সরবরাহকারী", "পাওনা ও পরিশোধ পরবর্তী ধাপে যুক্ত হবে।"],
-  cash: ["নগদ ও খরচ", "নগদ জমা, উত্তোলন ও খরচ পরবর্তী ধাপে যুক্ত হবে।"],
-  "stock-check": ["স্টক ভেলু যাচাই", "স্টক যাচাইয়ের সুবিধা পরবর্তী ধাপে যুক্ত হবে।"],
-  reports: ["রিপোর্ট", "বিক্রি, লাভ, নগদ ও স্টক রিপোর্ট পরবর্তী ধাপে যুক্ত হবে।"],
-  history: ["লেনদেনের ইতিহাস", "লেনদেন ও অডিট লগ পরবর্তী ধাপে যুক্ত হবে।"],
-  settings: ["সেটিংস", "অ্যাক্সেস সুরক্ষা ও ব্যাকআপ পরবর্তী ধাপে যুক্ত হবে।"],
-  menu: ["সব মডিউল", "অন্যান্য মডিউল ধাপে ধাপে যুক্ত হবে।"]
+const state = {
+  authenticated: false,
+  busy: false,
+  products: [],
 };
 
-const money = paisa =>
-  new Intl.NumberFormat("bn-BD", {
+function show(element, visible) {
+  if (element) element.hidden = !visible;
+}
+
+function message(element, text = "", type = "info") {
+  if (!element) return;
+  element.textContent = text;
+  element.className = `form-message ${type}`;
+  show(element, Boolean(text));
+}
+
+function moneyFromPaisa(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+
+  return new Intl.NumberFormat("bn-BD", {
     style: "currency",
-    currency: "BDT"
-  }).format((Number(paisa) || 0) / 100);
+    currency: "BDT",
+    maximumFractionDigits: 2,
+  }).format(amount / 100);
+}
 
-const qty = milli =>
-  new Intl.NumberFormat("bn-BD", {
-    maximumFractionDigits: 3
-  }).format((Number(milli) || 0) / 1000);
-
-const escapeHtml = value =>
-  String(value ?? "").replace(/[&<>"']/g, ch => ({
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
-    "'": "&#39;"
-  })[ch]);
-
-let productItems = [];
-let loadingProducts = false;
+    "'": "&#39;",
+  })[char]);
+}
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.headers || {})
-    }
-  });
+  const headers = new Headers(options.headers || {});
+  headers.set("Accept", "application/json");
 
-  let data;
+  if (options.body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let response;
 
   try {
-    data = await response.json();
+    response = await fetch(path, {
+      ...options,
+      headers,
+      credentials: "same-origin",
+      cache: "no-store",
+      redirect: "error",
+    });
   } catch {
-    throw new Error("সার্ভার থেকে সঠিক উত্তর পাওয়া যায়নি।");
+    throw new Error("সার্ভারের সঙ্গে সংযোগ হয়নি। ইন্টারনেট ও Deploy যাচাই করো।");
   }
 
-  if (!response.ok) {
-    throw new Error(data.error || `অনুরোধ ব্যর্থ হয়েছে (${response.status})`);
+  const contentType = response.headers.get("content-type") || "";
+  let result = {};
+
+  if (contentType.includes("application/json")) {
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error("সার্ভারের উত্তর পড়া যায়নি।");
+    }
   }
 
-  return data;
+  if (response.status === 401 && path !== "/api/auth/login") {
+    state.authenticated = false;
+    showLogin();
+    throw new Error("সেশন শেষ হয়েছে। আবার লগইন করো।");
+  }
+
+  if (!response.ok || result.ok === false) {
+    throw new Error(result.error || `অনুরোধ ব্যর্থ হয়েছে (${response.status})`);
+  }
+
+  return result;
 }
 
-function showMessage(message, kind = "info") {
-  const el = $("#product-message");
-  el.textContent = message;
-  el.className = `message ${kind}`;
-  el.hidden = false;
+function showLogin() {
+  state.authenticated = false;
+  show($("loginScreen"), true);
+  show($("appScreen"), false);
+
+  $("loginPassword").value = "";
+  $("loginPassword").type = "password";
+  $("togglePassword").textContent = "দেখাও";
+  $("togglePassword").setAttribute("aria-pressed", "false");
+  $("togglePassword").setAttribute("aria-label", "পাসওয়ার্ড দেখাও");
+
+  message($("loginMessage"));
+  $("loginButton").disabled = false;
+  $("loginButton").textContent = "লগইন";
 }
 
-function clearMessage() {
-  $("#product-message").hidden = true;
+function showApp() {
+  state.authenticated = true;
+  show($("loginScreen"), false);
+  show($("appScreen"), true);
+  message($("globalMessage"));
+}
+
+async function checkSession() {
+  try {
+    const result = await api("/api/auth/session");
+    if (result.authenticated) {
+      showApp();
+      await loadAppData();
+    } else {
+      showLogin();
+    }
+  } catch (error) {
+    showLogin();
+    message($("loginMessage"), error.message, "error");
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  if (state.busy) return;
+
+  const password = $("loginPassword").value;
+  if (!password) {
+    message($("loginMessage"), "পাসওয়ার্ড লিখো।", "error");
+    return;
+  }
+
+  state.busy = true;
+  $("loginButton").disabled = true;
+  $("loginButton").textContent = "লগইন হচ্ছে…";
+  message($("loginMessage"));
+
+  try {
+    await api("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+
+    $("loginPassword").value = "";
+    showApp();
+    await loadAppData();
+  } catch (error) {
+    showLogin();
+    message($("loginMessage"), error.message, "error");
+    $("loginPassword").focus();
+  } finally {
+    state.busy = false;
+    $("loginButton").disabled = false;
+    $("loginButton").textContent = "লগইন";
+  }
+}
+
+async function handleLogout() {
+  if (state.busy) return;
+
+  const confirmed = window.confirm("তুমি কি লগআউট করতে চাও?");
+  if (!confirmed) return;
+
+  state.busy = true;
+  $("logoutButton").disabled = true;
+  $("logoutButton").textContent = "Logout হচ্ছে…";
+
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch (error) {
+    message($("globalMessage"), error.message, "error");
+  } finally {
+    state.busy = false;
+    $("logoutButton").disabled = false;
+    $("logoutButton").textContent = "Logout";
+    state.products = [];
+    showLogin();
+  }
 }
 
 async function loadDashboard() {
-  try {
-    const [health, dashboard] = await Promise.all([
-      api("/api/health"),
-      api("/api/dashboard")
-    ]);
+  const result = await api("/api/dashboard");
+  const data = result.data || {};
 
-    $("#health").textContent = health.ok
-      ? "সার্ভার সংযুক্ত"
-      : "সংযোগ সমস্যা";
+  $("cashBalance").textContent = moneyFromPaisa(data.cashBalancePaisa);
+  $("todaySales").textContent = moneyFromPaisa(data.todaySalesPaisa);
+  $("stockValue").textContent = moneyFromPaisa(data.stockValuePaisa);
+  $("supplierPayable").textContent = moneyFromPaisa(data.supplierPayablePaisa);
+}
 
-    $("#cash").textContent = money(dashboard.cash_balance_paisa);
-    $("#stock").textContent = money(dashboard.stock_value_paisa);
-    $("#sales").textContent = money(dashboard.today_sales_paisa);
+async function loadProducts() {
+  const result = await api("/api/products");
+  state.products = Array.isArray(result.data) ? result.data : [];
+  renderProducts();
+}
 
-    $("#products").textContent =
-      new Intl.NumberFormat("bn-BD")
-        .format(dashboard.product_count || 0);
-  } catch {
-    $("#health").textContent = "সংযোগ সমস্যা";
+async function loadAppData() {
+  if (!state.authenticated) return;
+
+  message($("globalMessage"));
+
+  const results = await Promise.allSettled([
+    loadDashboard(),
+    loadProducts(),
+  ]);
+
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length) {
+    message(
+      $("globalMessage"),
+      failed.map((result) => result.reason.message).join(" "),
+      "error"
+    );
   }
 }
 
 function renderProducts() {
-  const query = $("#product-search")
-    .value.trim().toLocaleLowerCase();
+  const query = $("productSearch").value.trim().toLocaleLowerCase();
+  const list = $("productList");
 
-  const items = productItems.filter(product =>
-    `${product.name} ${product.sku}`
-      .toLocaleLowerCase()
-      .includes(query)
-  );
+  const filtered = state.products.filter((product) => {
+    return `${product.name} ${product.sku}`.toLocaleLowerCase().includes(query);
+  });
 
-  const host = $("#product-list");
-
-  if (!items.length) {
-    host.innerHTML = `
-      <div class="empty">
-        ${productItems.length
-          ? "কোনো মিল পাওয়া যায়নি।"
-          : "এখনো কোনো পণ্য নেই। “পণ্য যোগ” চাপ দিয়ে শুরু করো।"}
-      </div>`;
+  if (!filtered.length) {
+    list.innerHTML = '<p class="muted">কোনো পণ্য পাওয়া যায়নি।</p>';
     return;
   }
 
-  host.innerHTML = items.map(product => `
+  list.innerHTML = filtered.map((product) => `
     <article class="product-card">
-      <div class="product-top">
-        <div>
-          <h3>${escapeHtml(product.name)}</h3>
-          <small>
-            SKU: ${escapeHtml(product.sku)}
-            · একক: ${escapeHtml(product.unit)}
-          </small>
-        </div>
-        <span class="status ${product.active ? "active" : "inactive"}">
-          ${product.active ? "সক্রিয়" : "বন্ধ"}
-        </span>
+      <div class="product-card-main">
+        <strong>${escapeHtml(product.name)}</strong>
+        <span class="muted">SKU: ${escapeHtml(product.sku)}</span>
+        <span>স্টক: ${(Number(product.stock_qty_milli || 0) / 1000).toLocaleString("bn-BD")} ${escapeHtml(product.unit)}</span>
+        <span>বিক্রয়মূল্য: ${moneyFromPaisa(product.sale_price_paisa)}</span>
       </div>
-
-      <div class="product-values">
-        <div>
-          <small>বিক্রয়মূল্য</small>
-          <b>${money(product.sale_price_paisa)}</b>
-        </div>
-        <div>
-          <small>বর্তমান স্টক</small>
-          <b>${qty(product.stock_qty_milli)} ${escapeHtml(product.unit)}</b>
-        </div>
-        <div>
-          <small>গড় ক্রয়মূল্য</small>
-          <b>${money(product.avg_cost_paisa)}</b>
-        </div>
-        <div>
-          <small>সর্বনিম্ন স্টক</small>
-          <b>${qty(product.min_stock_qty_milli)} ${escapeHtml(product.unit)}</b>
-        </div>
-      </div>
-
-      <div class="card-actions">
-        <button class="secondary" data-edit="${product.id}">
-          সম্পাদনা
-        </button>
-        <button class="secondary"
-          data-toggle="${product.id}"
-          data-active="${product.active}">
-          ${product.active ? "বন্ধ করো" : "আবার চালু করো"}
-        </button>
-      </div>
+      <button
+        type="button"
+        class="secondary-button"
+        data-edit-product="${escapeHtml(product.id)}"
+      >সম্পাদনা</button>
     </article>
   `).join("");
-
-  host.querySelectorAll("[data-edit]").forEach(button => {
-    button.addEventListener("click", () => {
-      editProduct(button.dataset.edit);
-    });
-  });
-
-  host.querySelectorAll("[data-toggle]").forEach(button => {
-    button.addEventListener("click", () => {
-      toggleProduct(
-        button.dataset.toggle,
-        Number(button.dataset.active)
-      );
-    });
-  });
 }
 
-async function loadProducts() {
-  if (loadingProducts) return;
-
-  loadingProducts = true;
-  $("#refresh-products").disabled = true;
-  $("#product-list").innerHTML =
-    '<div class="empty">পণ্যের তালিকা লোড হচ্ছে...</div>';
-
-  try {
-    const result = await api("/api/products?all=1");
-
-    productItems = Array.isArray(result.items)
-      ? result.items
-      : [];
-
-    renderProducts();
-  } catch (error) {
-    $("#product-list").innerHTML =
-      '<div class="empty">পণ্য লোড হয়নি। আবার রিফ্রেশ করো।</div>';
-
-    showMessage(error.message, "error");
-  } finally {
-    loadingProducts = false;
-    $("#refresh-products").disabled = false;
-  }
+function resetProductForm() {
+  $("productForm").reset();
+  $("productId").value = "";
+  $("productSalePrice").value = "0";
+  $("productMinStock").value = "0";
+  $("saveProductButton").textContent = "পণ্য সংরক্ষণ";
+  show($("cancelProductEdit"), false);
 }
 
-function openForm(product = null) {
-  clearMessage();
+function editProduct(productId) {
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return;
 
-  $("#product-form").hidden = false;
-  $("#product-id").value = product?.id || "";
-  $("#form-title").textContent =
-    product ? "পণ্যের তথ্য সম্পাদনা" : "নতুন পণ্য যোগ";
+  $("productId").value = product.id;
+  $("productSku").value = product.sku;
+  $("productName").value = product.name;
+  $("productUnit").value = product.unit;
+  $("productSalePrice").value = (Number(product.sale_price_paisa) / 100).toFixed(2);
+  $("productMinStock").value = (Number(product.min_stock_qty_milli) / 1000).toString();
 
-  $("#p-name").value = product?.name || "";
-  $("#p-sku").value = product?.sku || "";
-  $("#p-sku").disabled = Boolean(product);
-
-  $("#p-unit").value = product?.unit || "pcs";
-
-  $("#p-sale").value = product
-    ? (Number(product.sale_price_paisa) / 100).toFixed(2)
-    : "";
-
-  $("#p-cost").value = product
-    ? (Number(product.avg_cost_paisa) / 100).toFixed(2)
-    : "0";
-
-  $("#p-cost").disabled = Boolean(product);
-  $("#cost-label").hidden = Boolean(product);
-
-  $("#p-min").value = product
-    ? (Number(product.min_stock_qty_milli) / 1000).toString()
-    : "0";
-
-  $("#edit-note").hidden = !product;
-
-  $("#save-product").textContent = product
-    ? "পরিবর্তন সংরক্ষণ"
-    : "পণ্য সংরক্ষণ";
-
-  $("#product-form").scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-}
-
-function editProduct(id) {
-  const product = productItems.find(item => item.id === id);
-  if (product) openForm(product);
-}
-
-function closeForm() {
-  $("#product-form").hidden = true;
-  $("#product-form").reset();
-  $("#product-id").value = "";
-  $("#p-sku").disabled = false;
-  $("#p-cost").disabled = false;
-  $("#cost-label").hidden = false;
-  $("#edit-note").hidden = true;
+  $("saveProductButton").textContent = "পরিবর্তন সংরক্ষণ";
+  show($("cancelProductEdit"), true);
+  $("productsSection").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function saveProduct(event) {
   event.preventDefault();
+  if (state.busy) return;
 
-  const id = $("#product-id").value;
-  const button = $("#save-product");
+  const productId = $("productId").value;
+  const salePricePaisa = Math.round(Number($("productSalePrice").value) * 100);
 
-  button.disabled = true;
-  clearMessage();
-
-  const payload = {
-    name: $("#p-name").value.trim(),
-    unit: $("#p-unit").value,
-    sale_price: Number($("#p-sale").value),
-    min_stock: Number($("#p-min").value)
-  };
-
-  if (!id) {
-    payload.sku = $("#p-sku").value.trim().toUpperCase();
-    payload.avg_cost = Number($("#p-cost").value);
-  }
-
-  try {
-    const result = await api(
-      id ? `/api/products/${encodeURIComponent(id)}` : "/api/products",
-      {
-        method: id ? "PATCH" : "POST",
-        body: JSON.stringify(payload)
-      }
-    );
-
-    closeForm();
-
-    showMessage(
-      result.message || "পণ্যের তথ্য সংরক্ষিত হয়েছে।",
-      "success"
-    );
-
-    await Promise.all([loadProducts(), loadDashboard()]);
-  } catch (error) {
-    showMessage(error.message, "error");
-  } finally {
-    button.disabled = false;
-  }
-}
-
-async function toggleProduct(id, active) {
-  const product = productItems.find(item => item.id === id);
-  if (!product) return;
-
-  const message = active
-    ? "এই পণ্যটি সক্রিয় তালিকা থেকে বন্ধ করবে? স্টক মুছবে না।"
-    : "এই পণ্যটি আবার সক্রিয় করবে?";
-
-  if (!confirm(message)) return;
-
-  try {
-    await api(`/api/products/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ active: active ? 0 : 1 })
-    });
-
-    showMessage("পণ্যের অবস্থা আপডেট হয়েছে।", "success");
-
-    await Promise.all([loadProducts(), loadDashboard()]);
-  } catch (error) {
-    showMessage(error.message, "error");
-  }
-}
-
-function openModule(key) {
-  if (key === "home") {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  if (!Number.isSafeInteger(salePricePaisa) || salePricePaisa < 0) {
+    message($("productMessage"), "বিক্রয়মূল্য সঠিক নয়।", "error");
     return;
   }
 
-  const module = modules[key];
-  if (!module) return;
+  const body = {
+    sku: $("productSku").value.trim(),
+    name: $("productName").value.trim(),
+    unit: $("productUnit").value,
+    sale_price_paisa: salePricePaisa,
+    min_stock_qty: Number($("productMinStock").value),
+  };
 
-  $("#panel-title").textContent = module[0];
-  $("#panel-description").textContent = module[1];
-  $("#panel").hidden = false;
+  state.busy = true;
+  $("saveProductButton").disabled = true;
+  message($("productMessage"));
 
-  $("#panel").scrollIntoView({ behavior: "smooth" });
+  try {
+    await api(
+      productId ? `/api/products/${encodeURIComponent(productId)}` : "/api/products",
+      {
+        method: productId ? "PATCH" : "POST",
+        body: JSON.stringify(body),
+      }
+    );
+
+    resetProductForm();
+    await Promise.all([loadProducts(), loadDashboard()]);
+    message($("productMessage"), "পণ্য সংরক্ষণ হয়েছে।", "success");
+  } catch (error) {
+    message($("productMessage"), error.message, "error");
+  } finally {
+    state.busy = false;
+    $("saveProductButton").disabled = false;
+  }
 }
 
-$("#new-product").addEventListener("click", () => openForm());
-$("#cancel-form").addEventListener("click", closeForm);
-$("#cancel-form-2").addEventListener("click", closeForm);
-$("#product-form").addEventListener("submit", saveProduct);
-$("#product-search").addEventListener("input", renderProducts);
-$("#refresh-products").addEventListener("click", loadProducts);
+function bindEvents() {
+  $("loginForm").addEventListener("submit", handleLogin);
+  $("logoutButton").addEventListener("click", handleLogout);
 
-$("#nav-products").addEventListener("click", () => {
-  $("#product-section").scrollIntoView({ behavior: "smooth" });
-});
+  $("togglePassword").addEventListener("click", () => {
+    const input = $("loginPassword");
+    const showing = input.type === "text";
 
-$("#close-panel").addEventListener("click", () => {
-  $("#panel").hidden = true;
-});
-
-document.querySelectorAll("[data-module]").forEach(button => {
-  button.addEventListener("click", () => {
-    openModule(button.dataset.module);
+    input.type = showing ? "password" : "text";
+    $("togglePassword").textContent = showing ? "দেখাও" : "লুকাও";
+    $("togglePassword").setAttribute("aria-pressed", String(!showing));
+    $("togglePassword").setAttribute(
+      "aria-label",
+      showing ? "পাসওয়ার্ড দেখাও" : "পাসওয়ার্ড লুকাও"
+    );
   });
-});
 
-loadDashboard();
-loadProducts();
+  $("refreshDashboard").addEventListener("click", async () => {
+    try {
+      await loadDashboard();
+      message($("globalMessage"), "ড্যাশবোর্ড আপডেট হয়েছে।", "success");
+    } catch (error) {
+      message($("globalMessage"), error.message, "error");
+    }
+  });
+
+  $("refreshProducts").addEventListener("click", async () => {
+    try {
+      await loadProducts();
+      message($("productMessage"), "পণ্যের তালিকা আপডেট হয়েছে।", "success");
+    } catch (error) {
+      message($("productMessage"), error.message, "error");
+    }
+  });
+
+  $("productSearch").addEventListener("input", renderProducts);
+  $("productForm").addEventListener("submit", saveProduct);
+  $("cancelProductEdit").addEventListener("click", resetProductForm);
+
+  $("productList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-product]");
+    if (button) editProduct(button.dataset.editProduct);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  bindEvents();
+  checkSession();
+});
