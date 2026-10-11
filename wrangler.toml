@@ -1,0 +1,15 @@
+name = "chamak-store-next"
+main = "src/index.js"
+compatibility_date = "2026-10-08"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chamak-store-next-db"
+database_id = "30bed853-da74-4a4b-b12e-8fb047c8bfbb"
+migrations_dir = "migrations"
